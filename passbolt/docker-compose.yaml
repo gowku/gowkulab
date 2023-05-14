@@ -1,0 +1,67 @@
+version: "3.9"
+services:
+  db:
+    image: ${MARIADB_IMG}
+    restart: unless-stopped
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "true"
+      MYSQL_DATABASE: "passbolt"
+      MYSQL_USER: "passbolt"
+      MYSQL_PASSWORD: "P4ssb0lt"
+    volumes:
+      - database_volume:/var/lib/mysql
+
+  passbolt:
+    image: ${PASSBOLT_IMG}
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      #PASSBOLT_SECURITY_SMTP_SETTINGS_ENDPOINTS_DISABLED: "true"
+      #PASSBOLT_EMAIL_VALIDATE_MX: "true"
+      APP_DEFAULT_LOCALE: fr_FR
+      APP_FULL_BASE_URL: https://passbolt.gowkulab.ovh
+      DATASOURCES_DEFAULT_HOST: "db"
+      DATASOURCES_DEFAULT_USERNAME: "passbolt"
+      DATASOURCES_DEFAULT_PASSWORD: "P4ssb0lt"
+      DATASOURCES_DEFAULT_DATABASE: "passbolt"
+      PASSBOLT_GPG_SERVER_KEY_FINGERPRINT: ${GPG_FINGERPRINT}
+      PASSBOLT_GPG_SERVER_KEY_PUBLIC_FILE: ${GPG_KEY_PUBLIC_FILE}
+      PASSBOLT_GPG_SERVER_KEY_PRIVATE_FILE: ${GPG_KEY_PRIVATE_FILE}
+      EMAIL_DEFAULT_FROM_NAME: admin
+      EMAIL_DEFAULT_FROM: admin.passbolt-server@proton.me
+      EMAIL_TRANSPORT_DEFAULT_PORT: 25
+      EMAIL_TRANSPORT_DEFAULT_HOST: ${SMTP_HOST_IP}
+    volumes:
+      - gpg_volume:/etc/passbolt/gpg
+      - jwt_volume:/etc/passbolt/jwt
+      #- ./certs/cert.pem:/etc/ssl/certs/certificate.crt:ro
+      #- ./certs/key.pem:/etc/ssl/certs/certificate.key:ro
+    command: ["/usr/bin/wait-for.sh", "-t", "0", "db:3306", "--", "/docker-entrypoint.sh"]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.passbolt-http.entrypoints: "web"
+      traefik.http.routers.passbolt-http.rule: "Host(`passbolt.gowkulab.ovh`)"
+      traefik.http.routers.passbolt-http.middlewares: "SslHeader@file"
+      traefik.http.routers.passbolt-https.middlewares: "SslHeader@file"
+      traefik.http.routers.passbolt-https.entrypoints: "websecure"
+      traefik.http.routers.passbolt-https.rule: "Host(`passbolt.gowkulab.ovh`)"
+      traefik.http.routers.passbolt-https.tls: "true"
+      traefik.http.routers.passbolt-https.tls.certresolver: "letsencrypt"
+
+  traefik:
+    image: ${TRAEFIK_IMG}
+    restart: always
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yaml:/traefik.yaml:ro
+      - ./conf/:/etc/traefik/conf
+      - ./shared/:/shared
+
+volumes:
+  database_volume:
+  gpg_volume:
+  jwt_volume:

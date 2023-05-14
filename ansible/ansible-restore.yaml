@@ -1,0 +1,88 @@
+---
+- name: Install Docker
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Update and upgrade packages
+      apt:
+        upgrade: yes
+        update_cache: yes
+
+    - name: Reboot server
+      reboot:
+        reboot_timeout: 300
+        pre_reboot_delay: 0
+        post_reboot_delay: 60
+        test_command: uptime
+
+    - name: Install required packages
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+        update_cache: yes
+
+    - name: Add Docker GPG key
+      shell: |
+        sudo install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+    - name: Add Docker repository
+      apt_repository:
+        filename: docker.list
+        repo: deb [arch={{ dpkg_architecture }} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+        state: present
+      vars:
+        dpkg_architecture: "{{ dpkg_architecture }}" # architecture of the system
+      register: docker_repo
+
+    - name: Update APT cache
+      apt:
+        update_cache: yes
+      when: docker_repo.changed
+
+    - name: Install Docker packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose
+        state: present
+
+    - name: Add user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    - name: Restart Docker service
+      service:
+        name: docker
+        state: restarted
+
+    - name: Start Docker containers
+      shell: |
+        cd /home/gowku/passbolt/
+        docker-compose -f docker-compose-ce.yaml up -d
+
+    - name: Restore Passbolt data
+      shell: |
+        docker exec -i passbolt-db-1 bash -c 'mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE}' < /home/gowku/backup-server-data/backup-db.sql
+        docker cp /home/gowku/backup-server-data/serverkey_private.asc passbolt-passbolt-1:/etc/passbolt/gpg/serverkey_private.asc
+        docker cp /home/gowku/backup-server-data/serverkey.asc passbolt-passbolt-1:/etc/passbolt/gpg/serverkey.asc
+        docker exec -i passbolt-passbolt-1 tar xvfzp - -C /usr/share/php/passbolt/ webroot/img/avatar < /home/gowku/backup-server-data/passbolt-avatars.tar.gz
+
+    - name: Stop Docker containers
+      shell: |
+        cd /home/gowku/passbolt/
+        docker-compose -f docker-compose-ce.yaml down
+
+    - name: Start Docker containers
+      shell: |
+        cd /home/gowku/passbolt/
+        docker-compose -f docker-compose-ce.yaml up -d

@@ -1,0 +1,4 @@
+	
+sudo nano ~/docker/.env
+
+

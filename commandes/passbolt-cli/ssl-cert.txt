@@ -1,0 +1,22 @@
+openssl req -x509 \
+    -newkey rsa:4096 \
+    -days 120 \
+    -subj "/C=LU/ST=Luxembourg/L=Esch-Sur-Alzette/O=Passbolt SA/OU=Passbolt IT Team/CN=passbolt.gowkulab.ovh/" \
+    -nodes \
+    -addext "subjectAltName = DNS:passbolt.gowkulab.ovh" \
+    -keyout key.pem \
+    -out cert.pem
+
+openssl req -x509 \
+    -newkey rsa:4096 \
+    -days 120 \
+    -subj "/C=LU/ST=Luxembourg/L=Esch-Sur-Alzette/O=Passbolt SA/OU=Passbolt IT Team/CN=82.66.112.186/" \
+    -nodes \
+    -addext "subjectAltName = IP:82.66.112.186" \
+    -keyout key.pem \
+    -out cert.pem
+
+
+https://help.passbolt.com/configure/https/ce/docker/manual.html
+
+https://help.passbolt.com/configure/https/ce/debian/manual.html

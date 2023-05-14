@@ -1,0 +1,3 @@
+https://community.passbolt.com/t/installation-issues-regarding-smtp-postfix-docker-and-proton-mail-bridge/6879/4
+
+piste a suivre !

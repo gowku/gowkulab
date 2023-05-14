@@ -1,0 +1,101 @@
+install docker:
+ sudo apt update && sudo apt upgrade -y
+ sudo apt get install ca-certificates curl gnupg
+ sudo install -m 0755 -d /etc/apt/keyrings
+ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+ sudo chmod a+r /etc/apt/keyrings/docker.gpg
+ -----
+echo \
+  "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+-----
+ sudo apt get update 
+ sudo apt get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+ sudo groupadd docker  
+ sudo usermod -aG docker $USER
+ log out and log in / reboot 
+ docker run hello-world
+
+start containers : 
+docker compose -f docker-compose-ce.yaml up -d
+docker compose --env-file .env -f docker-compose-ce.yaml up -d
+
+
+checkhealth :
+docker exec -it passbolt-passbolt-1 bash
+su www-data -s /bin/bash -c "./bin/cake passbolt healthcheck"
+
+check data + healthcheck : 
+docker exec -it passbolt-passbolt-1 /usr/share/php/passbolt/bin/status-report
+
+save data : 
+docker exec -i passbolt-db-1 bash -c   'mysqldump -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE}'   > /home/gowku/backup-server-data/backup-db.sql
+docker cp passbolt-passbolt-1:/etc/passbolt/gpg/serverkey_private.asc /home/gowku/passbolt/gpg/serverkey_private.asc
+docker cp passbolt-passbolt-1:/etc/passbolt/gpg/serverkey.asc /home/gowku/passbolt/gpg/serverkey.asc
+docker exec -i passbolt-passbolt-1     tar cvfzp - -C /usr/share/php/passbolt/ webroot/img/avatar     > /home/gowku/backup-server-data/passbolt-avatars.tar.gz
+tar -cvzf /home/gowku/backup-server-data.tar.gz /home/gowku/backup-server-data/
+send the data to the new server:
+scp /home/gowku/backup-server-data.tar.gz gowku@192.168.1.128:/home
+
+restore the data: 
+start containers then :
+docker compose -f docker-compose-ce.yaml up -d
+tar -xzvf /home/backup.tar.gz -C /home/backup
+docker exec -i passbolt-db-1 bash -c 'mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE}' < /home/gowku/backup-server-data/backup-db.sql
+
+docker cp /home/gowku/backup-server-data/serverkey_private.asc passbolt-passbolt-1:/etc/passbolt/gpg/serverkey_private.asc
+docker cp /home/gowku/backup-server-data/serverkey.asc passbolt-passbolt-1:/etc/passbolt/gpg/serverkey.asc
+docker exec -i passbolt-passbolt-1 tar xvfzp - -C /usr/share/php/passbolt/ webroot/img/avatar < /home/gowku/backup-server-data/passbolt-avatars.tar.gz
+
+stop containers : 
+docker compose -f docker-compose-ce.yaml down
+
+how to see if the database is populated :
+docker exec -it passbolt-db-1 bash
+mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE}
+show databases;
+use passbolt;
+show tables;
+SELECT * FROM users;
+
+create admin user:
+docker compose -f docker-compose.yaml exec passbolt su -m -c "/usr/share/php/passbolt/bin/cake \
+                                passbolt register_user \
+                                -u admin.passbolt-server@proton.me \
+                                -f admin \
+                                -l passbolt-server \
+                                -r admin" -s /bin/sh www-data
+               
+
+voir si un container recois bien la variable de .env :
+docker exec passbolt-db-1 env | grep DATABASE_NAME
+
+command pour set une variable environment :
+docker run --name passbolt \
+             -p 80:80 \
+             -p 443:443 \
+             -e PASSBOLT_PLUGINS_MFA_DUO_API_HOSTNAME=api-26e9f2fce.duosecurity.com \
+             -e etc.
+             
+supprimer container et volume: 
+docker compose -f docker-compose-ce.yaml down -v
+
+igbyYinrRd5#RlkTSfUVkXu!h7jvXvr1
+
+"P4ssb0lt"
+
+
+aws :
+mkdir passbolt 
+mkdir passbolt/conf
+cd passbolt
+wget -O docker-compose.yaml https://raw.githubusercontent.com/gowku/gowkulab-passbolt-config/main/docker-compose.yaml?token=GHSAT0AAAAAAB6IB27YODOJ5YDKSSCN4XY6ZC6YQWA
+
+wget -O traefik.yaml https://raw.githubusercontent.com/gowku/gowkulab-passbolt-config/main/traefik.yaml?token=GHSAT0AAAAAAB6IB27ZKZZ5IL3IRLYYT47IZC6YSVQ
+
+cd conf
+
+wget -O headers.yaml https://raw.githubusercontent.com/gowku/gowkulab-passbolt-config/main/conf/headers.yaml?token=GHSAT0AAAAAAB6IB27YS7BU6XF4WCPBT6DCZC6YTHA
+
+wget -O tls.yaml https://raw.githubusercontent.com/gowku/gowkulab-passbolt-config/main/conf/tls.yaml?token=GHSAT0AAAAAAB6IB27ZKRUKTGOTETN2OSFCZC6YT5Q

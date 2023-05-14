@@ -1,0 +1,22 @@
+---
+- hosts: my-server
+  tasks:
+    - name: Import backup-db.sql to passbolt-db-1 container
+      shell: docker exec -i passbolt-db-1 bash -c 'mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE}' < /home/gowku/backup-server-data/backup-db.sql
+
+    - name: Copy server keys to passbolt-passbolt-1 container
+      shell: docker cp /home/gowku/backup-server-data/serverkey_private.asc passbolt-passbolt-1:/etc/passbolt/gpg/serverkey_private.asc
+      become: true
+
+    - name: Copy server keys to passbolt-passbolt-1 container
+      shell: docker cp /home/gowku/backup-server-data/serverkey.asc passbolt-passbolt-1:/etc/passbolt/gpg/serverkey.asc
+      become: true
+
+    - name: Extract avatars archive to passbolt-passbolt-1 container
+      shell: docker exec -i passbolt-passbolt-1 tar xvfzp - -C /usr/share/php/passbolt/ webroot/img/avatar < /home/gowku/backup-server-data/passbolt-avatars.tar.gz
+
+    - name: Stop running containers
+      shell: docker compose down
+
+    - name: Start containers
+      shell: docker compose up -d

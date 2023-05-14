@@ -1,0 +1,41 @@
+---
+- name: Backup data and send to remote server
+  hosts: localhost
+  become: true
+
+  tasks:
+    - name: Create backup directory
+      file:
+        path: /tmp/backup
+        state: directory
+
+    - name: Dump SQL database
+      shell: docker exec -i passbolt-db-1 bash -c 'mysqldump -u${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE}' > /tmp/backup/backup-db.sql
+
+    - name: Copy server private key
+      docker_container_copy:
+        container: passbolt-passbolt-1
+        src: /etc/passbolt/gpg/serverkey_private.asc
+        dest: /tmp/backup/gpg/serverkey_private.asc
+
+    - name: Copy server public key
+      docker_container_copy:
+        container: passbolt-passbolt-1
+        src: /etc/passbolt/gpg/serverkey.asc
+        dest: /tmp/backup/gpg/serverkey.asc
+
+    - name: Create archive of avatars
+      shell: docker exec -i passbolt-passbolt-1 tar cvfzp - -C /usr/share/php/passbolt/ webroot/img/avatar > /tmp/backup/passbolt-avatars.tar.gz
+
+    - name: Compress backup directory
+      archive:
+        path: /tmp/backup
+        dest: /tmp/backup.tar.gz
+        format: gz
+
+    - name: Send data to remote server
+      copy:
+        src: /tmp/backup.tar.gz
+        dest: /home/gowku/backup-server-data.tar.gz
+        remote_user: gowku
+        ansible_host: 192.168.1.128

@@ -1,0 +1,38 @@
+docker exec -it passbolt-passbolt-1 bash
+
+mkdir /tmp/gpg-temp
+
+gpg --homedir /tmp/gpg-temp --batch --no-tty --gen-key <<EOF
+    Key-Type: default
+    Key-Length: ${PASSBOLT_KEY_LENGTH:-2048}
+    Subkey-Type: default
+    Subkey-Length: ${PASSBOLT_SUBKEY_LENGTH:-2048}
+    Name-Real: ${PASSBOLT_KEY_NAME:-admin}
+    Name-Email: ${PASSBOLT_KEY_EMAIL:-admin.passbolt-server@proton.me}
+    Expire-Date: ${PASSBOLT_KEY_EXPIRATION:-0}
+    %no-protection
+    %commit
+EOF
+
+gpg --homedir /tmp/gpg-temp --armor --export ${PASSBOLT_KEY_EMAIL:-admin.passbolt-server@proton.me} | tee /etc/passbolt/gpg/serverkey.asc > /dev/null
+
+gpg --homedir /tmp/gpg-temp --armor --export-secret-key ${PASSBOLT_KEY_EMAIL:-admin.passbolt-server@proton.me} | tee /etc/passbolt/gpg/serverkey_private.asc > /dev/null
+
+chown www-data:www-data /etc/passbolt/gpg/serverkey_private.asc
+chown www-data:www-data /etc/passbolt/gpg/serverkey.asc
+
+gpg --show-keys /etc/passbolt/gpg/serverkey.asc | grep -Ev "^(pub|sub|uid|$)" | tr -d ' '
+gpg --show-keys /etc/passbolt/gpg/serverkey_private.asc | grep -Ev "^(pub|sub|uid|$|sec|ssb)" | tr -d ' '
+
+B31B19C9990C14A5A328ED6143670C4E88BCA243
+
+aws: DDAC5DDE92FF68FFF46C96C4F427D8C47B7F0CF9
+
+su -s /bin/bash -c "/usr/share/php/passbolt/bin/cake passbolt healthcheck --gpg" www-data | grep GNUPGHOME
+
+rm -rf /var/lib/passbolt/.gnupg
+
+rm -rf /tmp/gpg-temp
+
+
+https://help.passbolt.com/faq/hosting/how-to-rotate-server-gpg-keys

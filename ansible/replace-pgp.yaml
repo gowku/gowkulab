@@ -1,0 +1,76 @@
+---
+- hosts: your_servers
+  become: true
+  tasks:
+    - name: Download files from server dist
+      shell: "command to download files"
+
+    - name: Extract files
+      shell: "command to extract files"
+
+    - name: Start containers
+      shell: "docker compose up -d"
+
+    - name: Create /tmp/gpg-temp directory
+      file:
+        path: /tmp/gpg-temp
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Create new pgp
+      shell: |
+        gpg --homedir /tmp/gpg-temp --batch --no-tty --gen-key <<EOF
+            Key-Type: default
+            Key-Length: ${PASSBOLT_KEY_LENGTH:-2048}
+            Subkey-Type: default
+            Subkey-Length: ${PASSBOLT_SUBKEY_LENGTH:-2048}
+            Name-Real: ${PASSBOLT_KEY_NAME:-admin}
+            Name-Email: ${PASSBOLT_KEY_EMAIL:-admin.passbolt-server@proton.me}
+            Expire-Date: ${PASSBOLT_KEY_EXPIRATION:-0}
+            %no-protection
+            %commit
+        EOF
+
+    - name: Export public key
+      shell: |
+        gpg --homedir /tmp/gpg-temp --armor --export ${PASSBOLT_KEY_EMAIL:-admin.passbolt-server@proton.me} | tee /etc/passbolt/gpg/serverkey.asc > /dev/null
+
+    - name: Export private key
+      shell: |
+        gpg --homedir /tmp/gpg-temp --armor --export-secret-key ${PASSBOLT_KEY_EMAIL:-admin.passbolt-server@proton.me} | tee /etc/passbolt/gpg/serverkey_private.asc > /dev/null
+
+    - name: Change ownership of private key
+      become: true
+      file:
+        path: /etc/passbolt/gpg/serverkey_private.asc
+        owner: www-data
+        group: www-data
+        mode: "0644"
+
+    - name: Change ownership of public key
+      become: true
+      file:
+        path: /etc/passbolt/gpg/serverkey.asc
+        owner: www-data
+        group: www-data
+        mode: "0644"
+
+    - name: Check public key
+      shell: "gpg --show-keys /etc/passbolt/gpg/serverkey.asc | grep -Ev '^(pub|sub|uid|$)' | tr -d ' '"
+
+    - name: Check private key
+      shell: "gpg --show-keys /etc/passbolt/gpg/serverkey_private.asc | grep -Ev '^(pub|sub|uid|$|sec|ssb)' | tr -d ' '"
+
+    - name: Healthcheck and assign pgp key
+      shell: "su -s /bin/bash -c '/usr/share/php/passbolt/bin/cake passbolt healthcheck --gpg' www-data | grep GNUPGHOME"
+
+    - name: Remove dirs
+      shell: "rm -rf /var/lib/passbolt/.gnupg"
+      become: true
+
+    - name: Remove /tmp/gpg-temp directory
+      file:
+        path: /tmp/gpg-temp
+        state: absent
