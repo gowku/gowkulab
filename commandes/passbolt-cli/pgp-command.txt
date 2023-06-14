@@ -24,9 +24,9 @@ chown www-data:www-data /etc/passbolt/gpg/serverkey.asc
 gpg --show-keys /etc/passbolt/gpg/serverkey.asc | grep -Ev "^(pub|sub|uid|$)" | tr -d ' '
 gpg --show-keys /etc/passbolt/gpg/serverkey_private.asc | grep -Ev "^(pub|sub|uid|$|sec|ssb)" | tr -d ' '
 
-B31B19C9990C14A5A328ED6143670C4E88BCA243
 
-aws: DDAC5DDE92FF68FFF46C96C4F427D8C47B7F0CF9
+
+aws: 
 
 su -s /bin/bash -c "/usr/share/php/passbolt/bin/cake passbolt healthcheck --gpg" www-data | grep GNUPGHOME
 
@@ -34,5 +34,10 @@ rm -rf /var/lib/passbolt/.gnupg
 
 rm -rf /tmp/gpg-temp
 
+
+
+docker exec -it passbolt-passbolt-1 chmod 440 /etc/passbolt/gpg/serverkey.asc
+
+docker exec -it passbolt-passbolt-1 chmod 440 /etc/passbolt/gpg/serverkey_private.asc
 
 https://help.passbolt.com/faq/hosting/how-to-rotate-server-gpg-keys
